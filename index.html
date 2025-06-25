@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Critical Services Finder</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 100%;
+            padding: 0 10px;
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+        #controls {
+            padding: 15px;
+            background: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        #map {
+            height: calc(100vh - 100px);
+            width: 100%;
+            border-radius: 8px;
+            margin: 10px 0;
+            touch-action: pan-x pan-y;
+        }
+        #results {
+            padding: 10px;
+            background: #ffffff;
+            max-height: 300px;
+            height: auto;
+            overflow-y: auto;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .service-item {
+            margin: 5px 0;
+            padding: 8px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform ease-in-out 0.1s;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        .service-item:hover {
+            background: #f1f3f5;
+            transform: translateY(-2px);
+        }
+        .service-item:active {
+            transform: translateY(0);
+        }
+        /* Apply consistent styling to select, button, and the new number input */
+        select, button, input[type="number"] {
+            padding: 8px;
+            margin: 0;
+            width: calc(100% - 10px); /* Adjust for padding/border if necessary */
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background ease-in-out 0.2s, border-color ease-in-out 0.2s;
+            touch-action: manipulation;
+            min-height: 44px; /* Ensure sufficient touch target size */
+        }
+        select, input[type="number"] {
+            background: #ffffff;
+            width: 100%; /* Make them take full width within flex item */
+        }
+        button {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:active {
+            background: #1e40af;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .loader {
+            border: 3px solid #e5e7eb;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-left: 8px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1001;
+            overflow-y: auto;
+        }
+        #modal-content {
+            background: #ffffff;
+            padding: 15px;
+            border-radius: 6px;
+            max-width: calc(90vw - 20px);
+            width: calc(100% - 20px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            margin: 20px;
+            max-height: calc(80vh - 40px);
+            overflow-y: auto;
+        }
+        #modal-close {
+            background: #dc2626;
+            float: right;
+            padding: 6px;
+            min-height: 36px;
+        }
+        #modal-close:hover {
+            background: #b91c1c;
+        }
+        /* Responsive adjustments */
+        @media (max-width: 600px) {
+            .container {
+                padding: 0 5px;
+            }
+            #controls {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 10px;
+                gap: 8px;
+            }
+            select, button, input[type="number"] { /* Apply to the new input as well */
+                width: 100%;
+                margin: 4px 0;
+                font-size: 14px;
+                padding: 8px;
+            }
+            #map {
+                height: calc(50vh - 80px);
+                min-height: 200px;
+            }
+            #results {
+                padding: 8px;
+                max-height: 200px;
+            }
+            .service-item {
+                padding: 8px;
+                font-size: 0.85rem;
+            }
+            .service-item button {
+                padding: 6px;
+                font-size: 0.8rem;
+                width: 48%;
+                margin: 2px 1%;
+            }
+            .loader {
+                width: 16px;
+                height: 16px;
+                margin-left: 5px;
+            }
+            #modal-content {
+                padding: 15px;
+                margin: 15px;
+            }
+            #modal-close {
+                padding: 6px;
+            }
+        }
+        @media (max-width: 400px) {
+            #map {
+                height: calc(45vh - 70px);
+            }
+            .service-item button {
+                width: 100%;
+                margin: 4px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="controls">
+            <select id="category" aria-label="Select service category">
+                <option value="healthcare.hospital">Hospitals</option>
+                <option value="healthcare.pharmacy">Pharmacies</option>
+                <option value="healthcare.clinic_or_praxis">Clinics</option>
+                <option value="building.healthcare">Health Center</option>
+                <option value="service.police">Police Stations</option>
+                <option value="service.vehicle">Gas/Fuel Stations</option>
+                <option value="service.fire_station">Fire Station</option>
+                <option value="service.financial">Banks</option>
+                <option value="amenity.toilet">Public Restrooms</option>
+            </select>
+            <!-- Label for accessibility, visually hidden but read by screen readers -->
+            <label for="search-radius" style="position: absolute; left: -9999px;">Search Radius (in currently selected unit):</label>
+            <input type="number" id="search-radius" value="1" min="0.1" step="0.1" aria-label="Adjust search radius">
+            <select id="distance-unit" aria-label="Select distance unit">
+                <option value="km">Kilometers (km)</option>
+                <option value="miles">Miles (mi)</option>
+            </select>
+            <button onclick="getUserLocation()" aria-label="Use my current location">Use My Location</button>
+            <button onclick="searchPlaces()" aria-label="Search for services">Search</button>
+            <div id="loader" class="loader"></div>
+        </div>
+        <div id="map" role="region" aria-label="Interactive map"></div>
+        <div id="results"></div>
+        <div id="modal">
+            <div id="modal-content">
+                <button id="modal-close" onclick="closeModal()" aria-label="Close details">Close</button>
+                <h2>Place Details</h2>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        let map, userMarker, routeLayer;
+        // Default user location to Kampala, Uganda
+        let userLocation = { lat: 0.316229, lng: 32.582200 }; 
+        const placesApiKey = '7e9799d789044f34b7c84d7855581df9';
+        const detailsApiKey = 'ad7e12879f8e437b981e58195bb34165';
+        const routingApiKey = '02f9e6e2179e4574a97b647b8b340d45';
+        const loader = document.getElementById('loader');
+        const searchButton = document.querySelector('#controls button:last-of-type');
+        let distanceUnit = document.getElementById('distance-unit').value;
+        const searchRadiusInput = document.getElementById('search-radius');
+        // searchRadiusKm will always store the radius in kilometers for API calls
+        let searchRadiusKm = parseFloat(searchRadiusInput.value); // Default search radius: 1km
+
+        // --- Event Listeners for UI Controls ---
+
+        // Update distance unit when changed and refresh results
+        document.getElementById('distance-unit').addEventListener('change', () => {
+            distanceUnit = document.getElementById('distance-unit').value;
+            updateRadiusInputDisplay(); // Update the displayed radius value based on the new unit
+            searchPlaces(); // Refresh results to update distances
+        });
+
+        // Update search radius when input changes and trigger a new search
+        searchRadiusInput.addEventListener('change', () => {
+            let newRadius = parseFloat(searchRadiusInput.value);
+            // Ensure radius is a positive number and meets the minimum
+            if (isNaN(newRadius) || newRadius <= 0) {
+                newRadius = 0.1; // Set to minimum if invalid
+            }
+            // If unit is miles, convert back to KM for internal storage
+            if (distanceUnit === 'miles') {
+                searchRadiusKm = newRadius / 0.621371; // Convert miles to km
+            } else {
+                searchRadiusKm = newRadius; // Already in km
+            }
+            searchRadiusInput.value = newRadius.toFixed(1); // Keep display consistent
+            searchPlaces(); // Perform a new search with the updated radius
+        });
+
+        // Function to update the displayed radius in the input field based on the selected unit
+        function updateRadiusInputDisplay() {
+            if (distanceUnit === 'miles') {
+                searchRadiusInput.value = (searchRadiusKm * 0.621371).toFixed(1); // Convert km to miles for display
+            } else {
+                searchRadiusInput.value = searchRadiusKm.toFixed(1); // Display in km
+            }
+        }
+
+        // --- Map and Location Functions ---
+
+        // Calculate distance between two points using Haversine formula
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            let distance = R * c; // Distance in km
+            if (distanceUnit === 'miles') {
+                distance *= 0.621371; // Convert to miles
+            }
+            return distance.toFixed(2); // Return rounded to 2 decimal places
+        }
+
+        // Initialize the Leaflet map
+        function initMap() {
+            map = L.map('map', {
+                zoomControl: true,
+                touchZoom: true,
+                doubleClickZoom: true,
+                scrollWheelZoom: true,
+                tap: true
+            }).setView([userLocation.lat, userLocation.lng], 13); // Set initial view
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            // Add user location marker
+            userMarker = L.marker([userLocation.lat, userLocation.lng]).addTo(map)
+                .bindPopup('Your Location').openPopup();
+        }
+
+        // Get user's current geographical location
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                loader.style.display = 'inline-block'; // Show loader
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        // Update userLocation with current coordinates
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        // Pan map to new location and update marker
+                        map.panTo([userLocation.lat, userLocation.lng], { animate: true, duration: 1.0 });
+                        userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                        searchPlaces(); // Perform search after getting location
+                    },
+                    error => {
+                        // Display message box instead of alert for errors
+                        displayModal('Location Error', 'Unable to retrieve your location. Using default location. Please ensure location services are enabled.');
+                        console.error("Geolocation error: ", error);
+                        searchPlaces(); // Still try to search with default location
+                    },
+                    { timeout: 10000 } // Timeout for location request
+                );
+            } else {
+                displayModal('Browser Error', 'Geolocation is not supported by your browser.');
+            }
+        }
+
+        // --- API Interaction Functions ---
+
+        // Search for places based on category, user location, and search radius
+        async function searchPlaces() {
+            const category = document.getElementById('category').value;
+            // Construct API URL using circle filter for radius search
+            // searchRadiusKm is always in kilometers, convert to meters for the API
+            const radiusInMeters = searchRadiusKm * 1000;
+            const url = `https://api.geoapify.com/v2/places?categories=${category}&filter=circle:${userLocation.lng},${userLocation.lat},${radiusInMeters}&limit=20&apiKey=${placesApiKey}`;
+            
+            loader.style.display = 'inline-block'; // Show loader
+            searchButton.disabled = true; // Disable search button during fetch
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                displayResults(data.features); // Display results on map and list
+            } catch (error) {
+                console.error('Error fetching places:', error);
+                document.getElementById('results').innerHTML = '<p>Error loading places. Please try again.</p>';
+                displayModal('Search Error', 'Failed to fetch places. Please check your internet connection or try again later.');
+            } finally {
+                loader.style.display = 'none'; // Hide loader
+                searchButton.disabled = false; // Re-enable search button
+            }
+        }
+
+        // Display search results on the map and in the results list
+        function displayResults(places) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // Clear previous results
+            // Remove all existing markers except user marker and tile layer
+            map.eachLayer(layer => {
+                if (layer !== userMarker && layer !== map._layers[Object.keys(map._layers)[0]] && layer !== routeLayer) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            const markers = [];
+            places.forEach(place => {
+                const props = place.properties;
+                const marker = L.marker([props.lat, props.lon]).addTo(map);
+                marker.bindPopup(props.name || 'Unknown');
+                markers.push(marker);
+
+                const distance = calculateDistance(userLocation.lat, userLocation.lng, props.lat, props.lon);
+                const unitLabel = distanceUnit === 'km' ? 'km' : 'mi';
+
+                const div = document.createElement('div');
+                div.className = 'service-item';
+                div.tabIndex = 0; // Make div focusable
+                div.innerHTML = `
+                    <strong>${props.name || 'Unknown'}</strong><br>
+                    Address: ${props.address_line2 || 'N/A'}<br>
+                    Distance: ${distance} ${unitLabel}<br>
+                    <button onclick="getPlaceDetails('${props.place_id}', ${props.lat}, ${props.lon})" aria-label="View details for ${props.name || 'Unknown'}">Details</button>
+                    <button onclick="getRoute(${props.lat},${props.lon})" aria-label="Get directions to ${props.name || 'Unknown'}">Get Directions</button>
+                `;
+                // Add keyboard accessibility for service items
+                div.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { // Enter or Space key to activate
+                        div.querySelector('button:first-of-type').click();
+                    }
+                });
+                resultsDiv.appendChild(div);
+            });
+
+            // Animate map to fit all markers if any places are found
+            if (markers.length > 0) {
+                const group = L.featureGroup(markers);
+                map.flyToBounds(group.getBounds(), { padding: [50, 50], maxZoom: 15, animate: true, duration: 1.0 });
+            } else {
+                displayModal('No Results', 'No places found within the selected radius for this category.');
+            }
+        }
+
+        // Get detailed information for a specific place
+        async function getPlaceDetails(placeId, lat, lon) {
+            const url = `https://api.geoapify.com/v2/place-details?id=${placeId}&apiKey=${detailsApiKey}`;
+            loader.style.display = 'inline-block';
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                const props = data.features[0].properties;
+                const distance = calculateDistance(userLocation.lat, userLocation.lng, lat, lon);
+                const unitLabel = distanceUnit === 'km' ? 'km' : 'mi';
+                document.getElementById('modal-body').innerHTML = `
+                    <p><strong>Name:</strong> ${props.name || 'N/A'}</p>
+                    <p><strong>Address:</strong> ${props.address_line2 || 'N/A'}</p>
+                    <p><strong>Phone:</strong> ${props.contact?.phone || 'N/A'}</p>
+                    <p><strong>Website:</strong> ${props.website ? `<a href="${props.website}" target="_blank">${props.website}</a>` : 'N/A'}</p>
+                    <p><strong>Coordinates:</strong> ${props.lat}, ${props.lon}</p>
+                    <p><strong>Distance from you:</strong> ${distance} ${unitLabel}</p>
+                `;
+                document.getElementById('modal').style.display = 'flex'; // Show modal
+            } catch (error) {
+                console.error('Error fetching place details:', error);
+                document.getElementById('modal-body').innerHTML = '<p>Error loading place details.</p>';
+                document.getElementById('modal').style.display = 'flex';
+                displayModal('Details Error', 'Failed to fetch place details.');
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // Get driving route from user location to a destination
+        async function getRoute(lat, lon) {
+            if (routeLayer) map.removeLayer(routeLayer); // Clear previous route
+            const url = `https://api.geoapify.com/v1/routing?waypoints=${userLocation.lat},${userLocation.lng}|${lat},${lon}&mode=drive&apiKey=${routingApiKey}`;
+            loader.style.display = 'inline-block';
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                if (data.features && data.features.length > 0) {
+                    const coordinates = data.features[0].geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+                    routeLayer = L.polyline(coordinates, { color: '#2563eb', weight: 5, opacity: 0.7 }).addTo(map);
+                    map.flyToBounds(routeLayer.getBounds(), { padding: [50, 50], maxZoom: 15, animate: true, duration: 1.0 });
+                } else {
+                    displayModal('Route Error', 'Could not find a route to this destination.');
+                }
+            } catch (error) {
+                console.error('Error fetching route:', error);
+                displayModal('Route Error', 'Error loading route. Please try again.');
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // --- Modal Functions (for alerts/messages) ---
+
+        // Custom modal function to display messages instead of alert()
+        function displayModal(title, message) {
+            document.getElementById('modal').style.display = 'flex';
+            document.getElementById('modal-content').querySelector('h2').textContent = title;
+            document.getElementById('modal-body').innerHTML = `<p>${message}</p>`;
+        }
+
+        // Close the modal
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Initialize the map and set initial radius display on page load
+        window.onload = () => {
+            initMap();
+            updateRadiusInputDisplay(); // Set the initial displayed value of the radius input
+        };
+    </script>
+</body>
+</html>

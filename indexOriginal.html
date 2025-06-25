@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Critical Services Finder</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+        }
+        #container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        #controls {
+            padding: 15px;
+            background: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        #map {
+            height: 60vh;
+            min-height: 400px;
+            width: 100%;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        #results {
+            padding: 15px;
+            background: #ffffff;
+            max-height: 300px;
+            overflow-y: auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-radius: 8px;
+        }
+        .service-item {
+            margin: 10px 0;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .service-item:hover {
+            background: #f1f3f5;
+            transform: translateY(-2px);
+        }
+        .service-item:active {
+            transform: translateY(0);
+        }
+        select, button {
+            padding: 10px;
+            margin: 5px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+        select {
+            background: #ffffff;
+            min-width: 200px;
+        }
+        button {
+            background: #2563eb;
+            color: #ffffff;
+            border: none;
+        }
+        button:hover {
+            background: #1d4ed8;
+        }
+        button:active {
+            background: #1e40af;
+        }
+        button:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+        .loader {
+            border: 3px solid #e5e7eb;
+            border-top: 3px solid #2563eb;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: none;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        #modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        #modal-content {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+        }
+        #modal-close {
+            background: #dc2626;
+            float: right;
+        }
+        #modal-close:hover {
+            background: #b91c1c;
+        }
+        @media (max-width: 600px) {
+            #controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            select, button {
+                width: 100%;
+                margin: 5px 0;
+            }
+            #map {
+                height: 50vh;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="controls">
+            <select id="category" aria-label="Select service category">
+              <option value="healthcare.hospital">Hospitals</option>
+            <option value="healthcare.pharmacy">Pharmacies</option>
+            <option value="healthcare.clinic_or_praxis">Clinics</option>
+            <option value="building.healthcare">Health Center</option>
+            <option value="service.police">Police Stations</option>
+            <option value="service.vehicle">Gas/Fuel Stations</option>
+            <option value="service.fire_station">Fire Station</option>
+            <option value="service.financial">Banks</option>
+            <option value="amenity.toilet">Public Restrooms</option>
+            </select>
+            <button onclick="getUserLocation()" aria-label="Use my current location">Use My Location</button>
+            <button onclick="searchPlaces()" aria-label="Search for services">Search</button>
+            <div id="loader" class="loader"></div>
+        </div>
+        <div id="map" role="region" aria-label="Interactive map"></div>
+        <div id="results"></div>
+        <div id="modal">
+            <div id="modal-content">
+                <button id="modal-close" onclick="closeModal()" aria-label="Close details">Close</button>
+                <h2>Place Details</h2>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script>
+        let map, userMarker, routeLayer;
+        let userLocation = { lat: 0.316229, lng: 32.582200 }; // Default to Kampala, Uganda
+        const placesApiKey = '7e9799d789044f34b7c84d7855581df9';
+        const detailsApiKey = 'ad7e12879f8e437b981e58195bb34165';
+        const routingApiKey = '02f9e6e2179e4574a97b647b8b340d45';
+        const loader = document.getElementById('loader');
+        const searchButton = document.querySelector('#controls button:last-of-type');
+
+        // Initialize map
+        function initMap() {
+            map = L.map('map').setView([userLocation.lat, userLocation.lng], 13);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors'
+            }).addTo(map);
+            userMarker = L.marker([userLocation.lat, userLocation.lng]).addTo(map)
+                .bindPopup('Your Location').openPopup();
+        }
+
+        // Get user's current location
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                loader.style.display = 'inline-block';
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        map.setView([userLocation.lat, userLocation.lng], 13);
+                        userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                        searchPlaces();
+                    },
+                    error => {
+                        alert('Unable to retrieve your location. Using default location.');
+                        searchPlaces();
+                    },
+                    { timeout: 10000 }
+                );
+            } else {
+                alert('Geolocation is not supported by your browser.');
+            }
+        }
+
+        // Search for places
+        async function searchPlaces() {
+            const category = document.getElementById('category').value;
+            const bounds = map.getBounds();
+            const filter = `rect:${bounds.getSouthWest().lng},${bounds.getSouthWest().lat},${bounds.getNorthEast().lng},${bounds.getNorthEast().lat}`;
+            const url = `https://api.geoapify.com/v2/places?categories=${category}&filter=${filter}&limit=20&apiKey=${placesApiKey}`;
+            loader.style.display = 'inline-block';
+            searchButton.disabled = true;
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                displayResults(data.features);
+            } catch (error) {
+                console.error('Error fetching places:', error);
+                document.getElementById('results').innerHTML = '<p>Error loading places.</p>';
+            } finally {
+                loader.style.display = 'none';
+                searchButton.disabled = false;
+            }
+        }
+
+        // Display search results
+        function displayResults(places) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '';
+            map.eachLayer(layer => {
+                if (layer !== userMarker && layer !== map._layers[Object.keys(map._layers)[0]]) {
+                    map.removeLayer(layer);
+                }
+            });
+
+            places.forEach(place => {
+                const props = place.properties;
+                const marker = L.marker([props.lat, props.lon]).addTo(map);
+                marker.bindPopup(props.name || 'Unknown').openPopup();
+
+                const div = document.createElement('div');
+                div.className = 'service-item';
+                div.tabIndex = 0; // Make focusable
+                div.innerHTML = `
+                    <strong>${props.name || 'Unknown'}</strong><br>
+                    Address: ${props.address_line2 || 'N/A'}<br>
+                    <button onclick="getPlaceDetails('${props.place_id}')" aria-label="View details for ${props.name || 'Unknown'}">Details</button>
+                    <button onclick="getRoute(${props.lat},${props.lon})" aria-label="Get directions to ${props.name || 'Unknown'}">Get Directions</button>
+                `;
+                div.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') div.querySelector('button:first-of-type').click();
+                });
+                resultsDiv.appendChild(div);
+            });
+        }
+
+        // Get place details
+        async function getPlaceDetails(placeId) {
+            const url = `https://api.geoapify.com/v2/place-details?id=${placeId}&apiKey=${detailsApiKey}`;
+            loader.style.display = 'inline-block';
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                const props = data.features[0].properties;
+                document.getElementById('modal-body').innerHTML = `
+                    <p><strong>Name:</strong> ${props.name || 'N/A'}</p>
+                    <p><strong>Address:</strong> ${props.address_line2 || 'N/A'}</p>
+                    <p><strong>Phone:</strong> ${props.contact?.phone || 'N/A'}</p>
+                    <p><strong>Coordinates:</strong> ${props.lat}, ${props.lon}</p>
+                `;
+                document.getElementById('modal').style.display = 'flex';
+            } catch (error) {
+                console.error('Error fetching place details:', error);
+                document.getElementById('modal-body').innerHTML = '<p>Error loading place details.</p>';
+                document.getElementById('modal').style.display = 'flex';
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // Get route to destination
+        async function getRoute(lat, lon) {
+            if (routeLayer) map.removeLayer(routeLayer);
+            const url = `https://api.geoapify.com/v1/routing?waypoints=${userLocation.lat},${userLocation.lng}|${lat},${lon}&mode=drive&apiKey=${routingApiKey}`;
+            loader.style.display = 'inline-block';
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                const coordinates = data.features[0].geometry.coordinates[0].map(coord => [coord[1], coord[0]]);
+                routeLayer = L.polyline(coordinates, { color: '#2563eb' }).addTo(map);
+                map.fitBounds(routeLayer.getBounds());
+            } catch (error) {
+                console.error('Error fetching route:', error);
+                alert('Error loading route.');
+            } finally {
+                loader.style.display = 'none';
+            }
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        // Initialize the map on page load
+        window.onload = initMap;
+    </script>
+</body>
+</html>

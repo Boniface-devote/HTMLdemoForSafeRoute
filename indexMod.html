@@ -17,9 +17,6 @@
             padding: 0 10px;
             margin: 0 auto;
             box-sizing: border-box;
-            display: flex; /* Use flexbox for layout */
-            flex-direction: column; /* Stack children vertically */
-            height: 100vh; /* Make container take full viewport height */
         }
         #controls {
             padding: 15px;
@@ -32,69 +29,23 @@
             position: sticky;
             top: 0;
             z-index: 1000;
-            transition: all 0.3s ease-in-out; /* Smooth transition for minimization */
-            min-height: 70px; /* Ensure a minimum height when expanded */
-        }
-        /* Minimized controls state */
-        #controls.minimized {
-            padding-top: 5px;
-            padding-bottom: 5px;
-            min-height: 50px; /* Reduced height for minimized state */
-            flex-wrap: nowrap; /* Prevent wrapping in minimized state */
-            justify-content: center; /* Center items horizontally */
-            box-shadow: 0 1px 2px rgba(0,0,0,0.08); /* Lighter shadow */
-            align-items: center;
-        }
-        #controls.minimized select,
-        #controls.minimized button,
-        #controls.minimized input[type="number"] {
-            font-size: 14px; /* Slightly smaller font */
-            padding: 6px 10px; /* Reduced padding */
-        }
-
-        .radius-unit-group {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex-wrap: nowrap;
         }
         #map {
-            height: calc(100vh - 200px); /* Adjust initial height taking into account results div and controls */
+            height: calc(100vh - 100px);
             width: 100%;
             border-radius: 8px;
             margin: 10px 0;
             touch-action: pan-x pan-y;
-            transition: all 0.3s ease-in-out; /* Smooth transition for minimization */
-            flex-shrink: 0; /* Prevent map from shrinking unintentionally */
         }
-        /* Minimized map state */
-        #map.minimized {
-            height: 0;
-            margin-top: 0;
-            margin-bottom: 0;
-            opacity: 0;
-            pointer-events: none; /* Disable map interaction when minimized */
-            flex-shrink: 1; /* Allow it to shrink to 0 */
-        }
-
         #results {
             padding: 10px;
             background: #ffffff;
-            /* Default max-height for results, adjusts dynamically */
             max-height: 300px;
             height: auto;
             overflow-y: auto;
             border-radius: 5px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            flex-grow: 1; /* Allow results to take available space */
-            transition: max-height 0.3s ease-in-out; /* Smooth transition for height changes */
         }
-
-        /* Adjust results div height when map and controls are minimized */
-        .container.minimized-layout #results {
-            max-height: calc(100vh - 70px); /* Approx 50px for minimized controls + some padding */
-        }
-
         .service-item {
             margin: 5px 0;
             padding: 8px;
@@ -116,23 +67,19 @@
         select, button, input[type="number"] {
             padding: 8px;
             margin: 0;
+            width: calc(100% - 10px); /* Adjust for padding/border if necessary */
             border: 1px solid #d1d5db;
             border-radius: 6px;
             font-size: 15px;
             cursor: pointer;
             transition: background ease-in-out 0.2s, border-color ease-in-out 0.2s;
             touch-action: manipulation;
+            min-height: 44px; /* Ensure sufficient touch target size */
         }
-        #search-radius, #distance-unit {
-            width: 150px;
-            max-width: 100%;
+        select, input[type="number"] {
+            background: #ffffff;
+            width: 100%; /* Make them take full width within flex item */
         }
-        #category, #controls > button {
-            width: auto;
-            flex-grow: 1;
-            min-width: 150px;
-        }
-
         button {
             background: #2563eb;
             color: #ffffff;
@@ -195,22 +142,6 @@
         #modal-close:hover {
             background: #b91c1c;
         }
-
-        /* Styling for the popup content */
-        .leaflet-popup-content .popup-details-btn {
-            background: #0ea5e9;
-            color: white;
-            padding: 5px 10px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 5px;
-            font-size: 0.85em;
-        }
-        .leaflet-popup-content .popup-details-btn:hover {
-            background: #0284c7;
-        }
-
         /* Responsive adjustments */
         @media (max-width: 600px) {
             .container {
@@ -222,32 +153,11 @@
                 padding: 10px;
                 gap: 8px;
             }
-            /* Ensure the radius and unit group stays inline and takes full width */
-            .radius-unit-group {
-                flex-direction: row;
-                gap: 8px;
+            select, button, input[type="number"] { /* Apply to the new input as well */
                 width: 100%;
-            }
-            .radius-unit-group input[type="number"],
-            .radius-unit-group select {
-                width: 50%;
-                flex-shrink: 1;
-            }
-
-            select, button, input[type="number"] {
                 margin: 4px 0;
                 font-size: 14px;
                 padding: 8px;
-            }
-            /* Override desktop-specific widths for mobile elements */
-            #search-radius, #distance-unit, #category, #controls > button {
-                width: 100%;
-                min-width: auto;
-            }
-            /* Re-apply full width to top-level controls on mobile */
-            #controls > select,
-            #controls > button {
-                width: 100%;
             }
             #map {
                 height: calc(50vh - 80px);
@@ -255,13 +165,8 @@
             }
             #results {
                 padding: 8px;
-                max-height: 200px; /* Default for mobile */
+                max-height: 200px;
             }
-            /* Adjusted max-height for results in minimized mobile layout */
-            .container.minimized-layout #results {
-                 max-height: calc(100vh - 70px);
-            }
-
             .service-item {
                 padding: 8px;
                 font-size: 0.85rem;
@@ -293,10 +198,6 @@
                 width: 100%;
                 margin: 4px 0;
             }
-            /* Further ensure the group remains inline on very small screens */
-            .radius-unit-group {
-                flex-wrap: nowrap;
-            }
         }
     </style>
 </head>
@@ -309,17 +210,18 @@
                 <option value="healthcare.clinic_or_praxis">Clinics</option>
                 <option value="building.healthcare">Health Center</option>
                 <option value="service.police">Police Stations</option>
+                <option value="service.vehicle">Gas/Fuel Stations</option>
                 <option value="service.fire_station">Fire Station</option>
+                <option value="service.financial">Banks</option>
+                <option value="amenity.toilet">Public Restrooms</option>
             </select>
-            <!-- New div to group search-radius and distance-unit -->
-            <div class="radius-unit-group">
-                <label for="search-radius" style="position: absolute; left: -9999px;">Search Radius (in currently selected unit):</label>
-                <input type="number" id="search-radius" value="1" min="0.1" step="0.1" aria-label="Adjust search radius">
-                <select id="distance-unit" aria-label="Select distance unit">
-                    <option value="km">Kilometers (km)</option>
-                    <option value="miles">Miles (mi)</option>
-                </select>
-            </div>
+            <!-- Label for accessibility, visually hidden but read by screen readers -->
+            <label for="search-radius" style="position: absolute; left: -9999px;">Search Radius (in currently selected unit):</label>
+            <input type="number" id="search-radius" value="1" min="0.1" step="0.1" aria-label="Adjust search radius">
+            <select id="distance-unit" aria-label="Select distance unit">
+                <option value="km">Kilometers (km)</option>
+                <option value="miles">Miles (mi)</option>
+            </select>
             <button onclick="getUserLocation()" aria-label="Use my current location">Use My Location</button>
             <button onclick="searchPlaces()" aria-label="Search for services">Search</button>
             <div id="loader" class="loader"></div>
@@ -339,24 +241,16 @@
     <script>
         let map, userMarker, routeLayer;
         // Default user location to Kampala, Uganda
-        let userLocation = { lat: 0.316229, lng: 32.582200 };
-        const placesApiKey = '7e9799d789044f34b7c84d7855581df9'; // Replace with your Geoapify API Key
-        const detailsApiKey = 'ad7e12879f8e437b981e58195bb34165'; // Replace with your Geoapify API Key
-        const routingApiKey = '02f9e6e2179e4574a97b647b8b340d45'; // Replace with your Geoapify API Key
+        let userLocation = { lat: 0.316229, lng: 32.582200 }; 
+        const placesApiKey = '7e9799d789044f34b7c84d7855581df9';
+        const detailsApiKey = 'ad7e12879f8e437b981e58195bb34165';
+        const routingApiKey = '02f9e6e2179e4574a97b647b8b340d45';
         const loader = document.getElementById('loader');
         const searchButton = document.querySelector('#controls button:last-of-type');
         let distanceUnit = document.getElementById('distance-unit').value;
         const searchRadiusInput = document.getElementById('search-radius');
         // searchRadiusKm will always store the radius in kilometers for API calls
         let searchRadiusKm = parseFloat(searchRadiusInput.value); // Default search radius: 1km
-
-        // Get references to elements for minimization
-        const resultsDiv = document.getElementById('results');
-        const controlsDiv = document.getElementById('controls');
-        const mapDiv = document.getElementById('map');
-        const containerDiv = document.querySelector('.container');
-
-        let isMinimized = false; // Flag to track current minimization state
 
         // --- Event Listeners for UI Controls ---
 
@@ -384,29 +278,6 @@
             searchPlaces(); // Perform a new search with the updated radius
         });
 
-        // Scroll event listener for the results div to minimize map and controls
-        resultsDiv.addEventListener('scroll', () => {
-            // Minimize map and controls when scrolling down (scrollTop > 0)
-            if (resultsDiv.scrollTop > 0 && !isMinimized) {
-                controlsDiv.classList.add('minimized');
-                mapDiv.classList.add('minimized');
-                containerDiv.classList.add('minimized-layout'); // Apply class to container to adjust results div height
-                isMinimized = true;
-            }
-            // Expand map and controls when scrolled back to top (scrollTop === 0)
-            else if (resultsDiv.scrollTop === 0 && isMinimized) {
-                controlsDiv.classList.remove('minimized');
-                mapDiv.classList.remove('minimized');
-                containerDiv.classList.remove('minimized-layout');
-                isMinimized = false;
-                // Invalidate map size after transition to ensure it renders correctly after expansion
-                // A short timeout matches the CSS transition duration for a smoother effect.
-                setTimeout(() => {
-                    map.invalidateSize();
-                }, 300);
-            }
-        });
-
         // Function to update the displayed radius in the input field based on the selected unit
         function updateRadiusInputDisplay() {
             if (distanceUnit === 'miles') {
@@ -424,8 +295,8 @@
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
             let distance = R * c; // Distance in km
             if (distanceUnit === 'miles') {
@@ -449,9 +320,6 @@
             // Add user location marker
             userMarker = L.marker([userLocation.lat, userLocation.lng]).addTo(map)
                 .bindPopup('Your Location').openPopup();
-
-            // Invalidate map size once after initialization to ensure it renders correctly
-            map.invalidateSize();
         }
 
         // Get user's current geographical location
@@ -524,46 +392,12 @@
             const markers = [];
             places.forEach(place => {
                 const props = place.properties;
-                const distance = calculateDistance(userLocation.lat, userLocation.lng, props.lat, props.lon);
-                const unitLabel = distanceUnit === 'km' ? 'km' : 'mi';
-
-                const popupContent = `
-                    <strong>${props.name || 'Unknown'}</strong><br>
-                    Address: ${props.address_line2 || 'N/A'}<br>
-                    Distance: ${distance} ${unitLabel}<br>
-                    <button class="popup-details-btn" data-place-id="${props.place_id}" data-lat="${props.lat}" data-lon="${props.lon}">Details</button>
-                    <button class="popup-directions-btn" data-lat="${props.lat}" data-lon="${props.lon}">Directions</button>
-                `;
-
                 const marker = L.marker([props.lat, props.lon]).addTo(map);
-                marker.bindPopup(popupContent);
+                marker.bindPopup(props.name || 'Unknown');
                 markers.push(marker);
 
-                // Add event listener for when the popup opens
-                marker.on('popupopen', function() {
-                    const popupElement = marker.getPopup().getElement();
-                    if (popupElement) {
-                        const detailsButton = popupElement.querySelector('.popup-details-btn');
-                        if (detailsButton) {
-                            detailsButton.onclick = () => {
-                                const placeId = detailsButton.dataset.placeId;
-                                const lat = parseFloat(detailsButton.dataset.lat);
-                                const lon = parseFloat(detailsButton.dataset.lon);
-                                getPlaceDetails(placeId, lat, lon);
-                            };
-                        }
-
-                        const directionsButton = popupElement.querySelector('.popup-directions-btn');
-                        if (directionsButton) {
-                            directionsButton.onclick = () => {
-                                const lat = parseFloat(directionsButton.dataset.lat);
-                                const lon = parseFloat(directionsButton.dataset.lon);
-                                getRoute(lat, lon);
-                            };
-                        }
-                    }
-                });
-
+                const distance = calculateDistance(userLocation.lat, userLocation.lng, props.lat, props.lon);
+                const unitLabel = distanceUnit === 'km' ? 'km' : 'mi';
 
                 const div = document.createElement('div');
                 div.className = 'service-item';
@@ -645,7 +479,9 @@
             }
         }
 
-        // Function to display custom modal messages
+        // --- Modal Functions (for alerts/messages) ---
+
+        // Custom modal function to display messages instead of alert()
         function displayModal(title, message) {
             document.getElementById('modal').style.display = 'flex';
             document.getElementById('modal-content').querySelector('h2').textContent = title;
